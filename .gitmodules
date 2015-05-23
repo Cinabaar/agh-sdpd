@@ -1,0 +1,12 @@
+[submodule "3rdparty/cppformat"]
+	path = 3rdparty/cppformat
+	url = https://github.com/cppformat/cppformat
+[submodule "3rdparty/glew-cmake"]
+	path = 3rdparty/glew-cmake
+	url = https://github.com/Perlmint/glew-cmake
+[submodule "3rdparty/glm"]
+	path = 3rdparty/glm
+	url = https://github.com/g-truc/glm
+[submodule "3rdparty/rapidjson"]
+	path = 3rdparty/rapidjson
+	url = https://github.com/miloyip/rapidjson

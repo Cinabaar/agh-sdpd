@@ -1,0 +1,17 @@
+{
+  "ldf": [0, 0, 0],
+  "rub": [3, 1, 1],
+
+  "count": 27000,
+  "distribution": "uniform",
+  "M": 1,
+  "N": 1,
+  "kB": 1,
+  "K": 1,
+  "n": 1,
+  "z": 0,
+  "h": 0.3,
+  "T0": 20.0,
+  "totalTime": 10,
+  "timeStep": 0.033
+}
