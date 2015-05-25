@@ -18,11 +18,12 @@ class Cell {
 public:
     int id, x, y, z;
     float h;
-    array<int, 27> neighbors;
+    int cellGroupId;
+    array<Cell*, 27> neighbors;
     std::list<Particle> particles;
 
     Cell() = default;
-    Cell(int id) : id(id) {}
+    Cell(int id, int cellGroupId) : id(id), cellGroupId(cellGroupId) {}
 
     Cell(const Cell&) = delete;
     Cell& operator=(Cell const&) = delete;

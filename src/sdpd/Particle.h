@@ -13,10 +13,10 @@ class Particle {
 public:
     int id;
     vec3 r, v, dv;
-    float T, dT;
+    float S, dS;
 
 public:
-    Particle(int id, vec3 r, vec3 v, float T);
+    Particle(int id, vec3 r, vec3 v, float S);
     Particle& operator=(Particle const&) = delete;
     Particle& operator=(Particle&&) = default;
     Particle(const Particle&) = delete;
@@ -24,7 +24,7 @@ public:
 
     friend std::ostream& operator<< (std::ostream& stream, const Particle& particle) {
 
-        stream<<fmt::format("Particle: {0} ({1}, {2}, {3}) {4}", particle.id, particle.r.x, particle.r.y, particle.r.z, particle.T);
+        stream<<fmt::format("Particle: {0} ({1}, {2}, {3}) {4}", particle.id, particle.r.x, particle.r.y, particle.r.z, particle.S);
         return stream;
     }
 };

@@ -79,7 +79,6 @@ int main(int argc, char **argv) {
     }
     else
     {
-        auto start = MPI_Wtime();
         std::vector<float> data(10000000);
         MPI_Status status;
         MPI_Recv(&data[0], data.size(), MPI_INT, 0, 0, MPI_COMM_WORLD, &status);
@@ -94,18 +93,18 @@ int main(int argc, char **argv) {
         float h = data[6];
         float totalTime = data[7];
         float timeStep = data[8];
-        CellGroup mainGroup(data[13], data[9], data[10], data[11], h);
+        CellGroup mainGroup(data[13], data[9], data[10], data[11], h, lbf, rub);
         int iter = 12;
         const auto temp_iter = iter;
         iter++;
         //std::cout<<mainGroup<<std::endl;
         for(int group=0; group<data[temp_iter]; group++) {
-            CellGroup cellGroup(data[iter], data[9], data[10], data[11], h);
+            CellGroup cellGroup(data[iter], data[9], data[10], data[11], h, lbf, rub);
             iter++;
             const auto temp_iter = iter;
             iter++;
             for (int c = 0; c < data[temp_iter]; c++) {
-                Cell cell(data[iter]);
+                Cell cell(data[iter], cellGroup.id);
                 int c_x = cell.id % cellGroup.h_x;
                 int c_y = (cell.id % (cellGroup.h_x * cellGroup.h_y)) / cellGroup.h_x;
                 int c_z = (cell.id / (cellGroup.h_x * cellGroup.h_y));
@@ -138,6 +137,7 @@ int main(int argc, char **argv) {
         Client client(mainGroup, lbf, rub);
         client.run(totalTime, timeStep);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize ();
     return 0;
 }

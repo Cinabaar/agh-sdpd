@@ -16,7 +16,7 @@ using std::vector;
 using std::map;
 using std::pair;
 using CellDistancesToNeighborGroups =  vector<pair<CellId, vector<pair<CellGroupId, Distance >>>>;
-
+using glm::vec3;
 class CellGroup {
 friend class Controller;
 public:
@@ -24,7 +24,7 @@ public:
 
     int h_x, h_y, h_z;
     float h;
-
+    vec3 lbf, rub;
     map<CellId, Cell> cells;
     map<CellGroupId, vector<CellId>> neighbors_to_share_with;
 
@@ -32,7 +32,7 @@ public:
     CellDistancesToNeighborGroups outerCells;
 public:
     CellGroup() = default;
-    CellGroup(int id, int h_x, int h_y, int h_z, float h) : id(id), h_x(h_x), h_y(h_y), h_z(h_z), h(h) {};
+CellGroup(int id, int h_x, int h_y, int h_z, float h, vec3 lbf, vec3 rub) : id(id), h_x(h_x), h_y(h_y), h_z(h_z), h(h), lbf(lbf), rub(rub) {};
     CellGroup(const CellGroup&) = delete;
     CellGroup& operator=(CellGroup const&) = delete;
     CellGroup(CellGroup&&) = default;
@@ -72,4 +72,5 @@ public:
     void initializeNeighborGroup(CellGroup &neighbor_cell_group);
     void sortCellsByDistanceToNeighbor();
     int getParticleCount();
+    int xyzToCellId(float x, float y, float z);
 };

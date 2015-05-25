@@ -1,3 +1,4 @@
 bin/*
 lib/*
 /build/
+/.ycm_extra_conf.pyc

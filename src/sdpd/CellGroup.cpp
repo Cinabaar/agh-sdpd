@@ -4,40 +4,61 @@
 
 #include "CellGroup.h"
 
+int CellGroup::xyzToCellId( float x, float y, float z )
+{
+    int c_x, c_y, c_z;
+    c_x = x / h;
+    c_y = y / h;
+    c_z = z / h;
+    if(x == rub.x) c_x--;
+    if(y == rub.y) c_y--;
+    if(z == rub.z) c_z--; 
+    int cid = c_x + c_y * h_x + c_z * h_x * h_y;    
+    return cid;
+}
+
 void CellGroup::initializeCellNeighbors(Cell &c)
 {
+    array<int, 27> neighbors;
     for(int i=-1;i<2;i++)
     {
         for(int j=-1;j<2;j++)
         {
             for(int k=-1;k<2;k++)
             {
-                c.neighbors[(k+1) + (j+1)*3 + (i+1)*9] = (c.x+k) + (c.y+j)*h_x + (c.z+i)*h_x*h_y;
+                neighbors[(k+1) + (j+1)*3 + (i+1)*9] = (c.x+k) + (c.y+j)*h_x + (c.z+i)*h_x*h_y;
             }
         }
     }
     for(int i=0;i<27;i++)
     {
-        if(c.neighbors[i] < 0 || c.neighbors[i] >= h_x*h_y*h_z || c.neighbors[i]==c.id) {
-            c.neighbors[i] = -1;
+        if(neighbors[i] < 0 || neighbors[i] >= h_x*h_y*h_z || neighbors[i]==c.id) {
+            neighbors[i] = -1;
             continue;
         }
         int c_x = c.id % h_x;
         int c_y = (c.id % (h_x*h_y)) / h_x;
         int c_z = (c.id / (h_x * h_y));
 
-        int n_x = c.neighbors[i] % h_x;
-        int n_y = (c.neighbors[i] % (h_x*h_y)) / h_x;
-        int n_z = (c.neighbors[i] / (h_x * h_y));
+        int n_x = neighbors[i] % h_x;
+        int n_y = (neighbors[i] % (h_x*h_y)) / h_x;
+        int n_z = (neighbors[i] / (h_x * h_y));
 
         if(abs(c_x-n_x)>1 || abs(c_y-n_y)>1 || abs(c_z-n_z)>1)
-            c.neighbors[i] = -1;
+            neighbors[i] = -1;
     }
-
+    for(int i=0;i<27;i++)
+    {
+        if(neighbors[i] == -1)
+            c.neighbors[i] = nullptr;
+        else
+            c.neighbors[i] = &cells[neighbors[i]];
+    }
     if(std::find_if(innerCells.begin(), innerCells.end(), [&](const pair<CellId, vector<pair<CellGroupId, Distance >>> el) {return el.first == c.id;}) == innerCells.end())
     {
         innerCells.push_back(std::make_pair(c.id, vector<pair<CellGroupId, Distance>>()));
     }
+    
 }
 
 void CellGroup::initializeNeighborGroup(CellGroup &neighbor_cell_group) {
@@ -47,7 +68,6 @@ void CellGroup::initializeNeighborGroup(CellGroup &neighbor_cell_group) {
         {
             continue;
         }
-
         int min_distance = INT_MAX;
         for(auto& nc : neighbor_cell_group.cells)
         {
@@ -64,7 +84,7 @@ void CellGroup::initializeNeighborGroup(CellGroup &neighbor_cell_group) {
         {
             it->second.push_back(std::make_pair(neighbor_cell_group.id, min_distance));
         }
-        if(min_distance <=2 )
+        if(min_distance <=1 )
         {
             neighbors_to_share_with[neighbor_cell_group.id].push_back(c.first);
         }
@@ -88,7 +108,7 @@ void CellGroup::initializeNeighborGroup(CellGroup &neighbor_cell_group) {
         }
         auto it = std::find_if(outerCells.begin(), outerCells.end(), [&](const pair<CellId, vector<pair<CellGroupId, Distance >>> el) {return el.first == nc.first;});
 
-        if(min_distance <= 2)
+        if(min_distance <= 1)
         {
             if(it == outerCells.end())
             {

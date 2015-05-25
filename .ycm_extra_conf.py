@@ -20,6 +20,10 @@ flags = [
   '-x', 'c++',
   '-I', './src',
   '-I', './include',
+  '-I', './3rdparty/rapidjson/include',
+  '-I', './3rdparty/cppformat',
+  '-I', './3rdparty/glm',
+  '-I', './3rdparty/glew-cmake/include',
   '-isystem', '/usr/local/include',
   '-isystem', '/usr/include',
   

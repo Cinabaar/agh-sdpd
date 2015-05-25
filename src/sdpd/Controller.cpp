@@ -1,20 +1,21 @@
 //
 // Created by dawid on 17/05/15.
 //
-#include <mpi.h>
 #include <cmath>
 #include <vector>
 #include <iostream>
 #include "format.h"
 #include "Controller.h"
 #include "CellGroup.h"
+#include <chrono>
+#include <thread>
 
 using namespace fmt;
 
 Controller::Controller(int count, float kB, float K, float n, float z, float N, float M, float h, float T0, float totalTime, float timeStep,
                        glm::vec3 ldf, glm::vec3 rub, int slaves) : _count(count), _kB(kB), _K(K), _n(n), _z(z), _N(N), _M(M), _h(h), T0(T0),
                                                                    totalTime(totalTime), timeStep(timeStep), _ldf(ldf), _rub(rub), _slaves(slaves),
-                                                                   buffers(slaves), outputData(count)
+                                                                   buffers(slaves) 
 {}
 
 bool Controller::initialize() {
@@ -58,12 +59,12 @@ bool Controller::initialize() {
     }
     std::vector<CellGroup> cellGroups;
     for (int i = 0; i < _slaves; i++) {
-        CellGroup cellGroup(i + 1, h_x, h_y, h_z, _h);
+        CellGroup cellGroup(i + 1, h_x, h_y, h_z, _h, _ldf, _rub);
         for (int &c : slave_cells[i]) {
             int c_x = c % h_x;
             int c_y = (c % (h_x * h_y)) / h_x;
             int c_z = (c / (h_x * h_y));
-            Cell cell(c);
+            Cell cell(c, cellGroup.id);
             cell.x = c_x;
             cell.y = c_y;
             cell.z = c_z;
@@ -127,7 +128,7 @@ bool Controller::initialize() {
                 init_messages[i].push_back(part.v.x);
                 init_messages[i].push_back(part.v.y);
                 init_messages[i].push_back(part.v.z);
-                init_messages[i].push_back(part.T);
+                init_messages[i].push_back(part.S);
             }
         }
         if(i>0)
@@ -149,7 +150,6 @@ bool Controller::initialize() {
             }
         }
     }
-    auto mid = MPI_Wtime();
     std::vector<MPI_Request> requests(_slaves);
     std::vector<MPI_Status> status(_slaves);
     for(i=0;i<_slaves;i++)
@@ -157,24 +157,17 @@ bool Controller::initialize() {
         MPI_Isend(&(init_messages[i][0]), init_messages[i].size(), MPI_FLOAT, i+1, 0, MPI_COMM_WORLD, &requests[i]);
     }
     MPI_Waitall(_slaves, &requests[0], &status[0]);
-    auto end = MPI_Wtime();
 
     //std::cout<<mid - start<<" "<<end-mid<<std::endl;
 
     return true;
 }
 
-void Controller::waitForData() {
-    vector<MPI_Request> requests(_slaves);
-    vector<MPI_Status> status(_slaves);
-    for(int i=0;i<_slaves;i++)
-    {
-        buffers[i].reserve(_count*5);
-        MPI_Irecv(&buffers[i][0], _count*5, MPI_FLOAT, i+1, 0, MPI_COMM_WORLD, &requests[i]);
-    }
-    std::cout<<"dupa"<<std::endl;
+    int tick = 0;
+void Controller::waitForData(vector<MPI_Request>& requests, vector<MPI_Status>& status) {
+
+    outputData = vector<glm::vec4>(_count);
     MPI_Waitall(_slaves, &requests[0], &status[0]);
-    std::cout<<"cipa"<<std::endl;
     for(int i=0;i<_slaves;i++)
     {
         int length;
@@ -186,24 +179,39 @@ void Controller::waitForData() {
 }
 
 void Controller::run() {
-    int tick = 0;
+ vector<MPI_Request> requests(_slaves);
+    vector<MPI_Status> status(_slaves);
+    double time = MPI_Wtime();
+    sendTick(tick++);
+    std::cout<<fmt::format("{0}. {1} {2}", "Controller", "Tick: ", MPI_Wtime() - time)<<std::endl;
+    time = MPI_Wtime();
     while(tick*timeStep < totalTime)
     {
-        //std::cout<<tick<<std::endl;
+        for(int i=0;i<_slaves;i++)
+        {
+            buffers[i].reserve(_count*5);
+            MPI_Irecv(&buffers[i][0], _count*5, MPI_FLOAT, i+1, 2, MPI_COMM_WORLD, &requests[i]);
+        }
+        std::cout<<fmt::format("{0}. {1} {2}", "Controller", "Receiving: ", MPI_Wtime() - time)<<std::endl;
+        time = MPI_Wtime();
         sendTick(tick);
-        //std::cout<<"Wait for data"<<std::endl;
-        waitForData();
-        //std::cout<<"Print data"<<std::endl;
-        printer.printData(outputData, fmt::format("output{0}.data", tick));
+        std::cout<<fmt::format("{0}. {1} {2}", "Controller", "Tick: ", MPI_Wtime() - time)<<std::endl;
+        time = MPI_Wtime();
+        waitForData(requests, status);
+        std::cout<<fmt::format("{0}. {1} {2}", "Controller", "Waiting for data: ", MPI_Wtime() - time)<<std::endl;
+        time = MPI_Wtime();
+        printer.addData(outputData, fmt::format("output{0}.data", tick));
+        std::cout<<fmt::format("{0}. {1} {2}", "Controller", "Printing data: ", MPI_Wtime() - time)<<std::endl;
+        time = MPI_Wtime();
         tick++;
     }
-    sendTick(-1);
-
+    std::cout<<"Printing data"<<std::endl;
+    printer.printData();
 }
 
 void Controller::sendTick(int tick) {
     for(int i=0;i<_slaves;i++)
     {
-        MPI_Send(&tick, 1, MPI_INT, i+1, 0, MPI_COMM_WORLD);
+        MPI_Send(&tick, 1, MPI_INT, i+1, 1, MPI_COMM_WORLD);
     }
 }

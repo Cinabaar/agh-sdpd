@@ -18,7 +18,7 @@ void BasicCalculations::integrate(Particle &particle, float deltaTime)
     vec3 oldPosition = particle.r;
     particle.r += particle.dv * deltaTime;
     edgeCondition(oldPosition, particle.r, particle.v);
-    particle.T = (500*particle.r.y*particle.r.y*particle.r.y - 750* particle.r.y*particle.r.y +370*particle.r.y)/3;
+    particle.S = (500*particle.r.y*particle.r.y*particle.r.y - 750* particle.r.y*particle.r.y +370*particle.r.y)/3;
 }
 
 void BasicCalculations::edgeCondition(vec3 oldPosition, vec3& newPosition, vec3& newVelocity) {
@@ -39,7 +39,7 @@ void BasicCalculations::edgeCondition(vec3 oldPosition, vec3& newPosition, vec3&
             newVelocity = normalize(newVect) * glm::length(newVelocity);
             didBump = true;
         }
-        if (rub.x < newPosition.x) {
+        else if (rub.x < newPosition.x) {
             newPosition.x -= 2.0f * (newPosition.x - rub.x);
 
             inters.x = rub.x;
@@ -51,7 +51,7 @@ void BasicCalculations::edgeCondition(vec3 oldPosition, vec3& newPosition, vec3&
 
             didBump = true;
         }
-        if (newPosition.y < lbf.y) {
+        else if (newPosition.y < lbf.y) {
             newPosition.y += 2.0f * (lbf.y - newPosition.y);
 
             inters.y = lbf.y;
@@ -63,7 +63,7 @@ void BasicCalculations::edgeCondition(vec3 oldPosition, vec3& newPosition, vec3&
 
             didBump = true;
         }
-        if (rub.y < newPosition.y) {
+        else if (rub.y < newPosition.y) {
             newPosition.y -= 2.0f * (newPosition.y - rub.y);
 
             inters.y = rub.y;
@@ -75,7 +75,7 @@ void BasicCalculations::edgeCondition(vec3 oldPosition, vec3& newPosition, vec3&
 
             didBump = true;
         }
-        if (newPosition.z < lbf.z) {
+        else if (newPosition.z < lbf.z) {
             newPosition.z += 2.0f * (lbf.z - newPosition.z);
 
             inters.z = lbf.z;
@@ -87,7 +87,7 @@ void BasicCalculations::edgeCondition(vec3 oldPosition, vec3& newPosition, vec3&
 
             didBump = true;
         }
-        if (rub.z < newPosition.z) {
+        else if (rub.z < newPosition.z) {
             newPosition.z -= 2.0f * (newPosition.z - rub.z);
 
             inters.z = rub.z;

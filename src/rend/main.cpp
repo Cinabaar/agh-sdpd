@@ -371,7 +371,7 @@ static void OnKey(GLFWwindow *window, int key, int scancode, int action, int mod
             glfwSetWindowTitle(window, fmt::format("{0}{1}{2}: {3}", filePrefix, currentFile, fileSuffix, positions.size()).c_str());
         }
     }
-    else if(key==GLFW_KEY_LEFT && action == GLFW_PRESS)
+    else if(key==GLFW_KEY_LEFT && (action == GLFW_PRESS || action == GLFW_REPEAT))
     {
         if(tryParseFile(fmt::format("{0}{1}{2}", filePrefix, currentFile-1, fileSuffix)))
         {
@@ -380,7 +380,7 @@ static void OnKey(GLFWwindow *window, int key, int scancode, int action, int mod
             glfwSetWindowTitle(window, fmt::format("{0}{1}{2}: {3}", filePrefix, currentFile, fileSuffix, positions.size()).c_str());
         }
     }
-    else if(key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+    else if(key == GLFW_KEY_RIGHT && (action == GLFW_PRESS || action == GLFW_REPEAT))
     {
         if(tryParseFile(fmt::format("{0}{1}{2}", filePrefix, currentFile+1, fileSuffix)))
         {

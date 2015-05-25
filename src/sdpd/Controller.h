@@ -7,7 +7,7 @@
 #include <glm/glm.hpp>
 #include "Cell.h"
 #include "OutputDataPrinter.h"
-
+#include <mpi.h>
 class Controller {
 private:
     int _count;
@@ -40,8 +40,7 @@ public:
 
     bool initialize();
 
-    void waitForData();
-
+    void waitForData(vector<MPI_Request>& requests, vector<MPI_Status>& status);
     void run();
 
     void sendTick(int tick);

@@ -4,7 +4,7 @@
 
 #pragma once
 
-
+#include <mpi.h>
 #include "CellGroup.h"
 #include "BasicCalculations.h"
 
@@ -16,25 +16,22 @@ class Client {
     CellGroup cellGroup;
     BasicCalculations calculations;
 public:
-    Client(CellGroup& group, vec3 lbf, vec3 rub) : cellGroup(std::move(group)), calculations(lbf, rub)
-    {
-        generateOutputData();
-    }
+Client(CellGroup& group, vec3 lbf, vec3 rub) : cellGroup(std::move(group)), calculations(lbf, rub) {}
     void run(float totalTime, float timeStep);
     void generateOutputData();
-    void sendDataToController();
+    void sendDataToController(bool firstTime);
 
     int waitForTick();
 
-    vector<pair<int, vector<float>>> createDataVectors();
+    DataToSend createDataVectors();
 
     int calculateInnerCells();
 
-    void calculateEdgeAndOuterCells(int edgeCellsStartAt);
+    void calculateEdgeCells(int edgeCellsStartAt);
 
     void parseData(vector<float> &vector, int length);
 
-    void integrate(float deltaTime);
+    DataToSend integrate(float deltaTime);
 
     void sendDataToNeighbors(DataToSend& dataToSend, vector<MPI_Request>& requests);
 
