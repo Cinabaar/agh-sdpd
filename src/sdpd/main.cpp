@@ -8,8 +8,37 @@
 #include "glm/glm.hpp"
 #include "CellGroup.h"
 #include "Client.h"
+#include <random>
+#include "SDPDCalculations.h"
 
 using namespace rapidjson;
+using std::cout;
+using std::endl;
+
+/*int main()
+{
+    ParticleWienerRng rng;
+    std::mt19937 mt;
+    std::ofstream files[4];
+    files[0].open("wiener0.data");
+    files[1].open("wiener1.data");
+    files[2].open("wiener2.data");
+    files[3].open("wiener3.data");
+
+    glm::mat3 W(0);
+    float V = 0;
+    for(int i=0;i<300;i++)
+    {
+        auto inc = rng.getWienerIncrements(mt(), i, 0, 1, 0.033);
+        W+=inc.first;
+        V+=inc.second;
+        files[0]<<i<<" "<<W[0][0]<<endl;
+        files[1]<<i<<" "<<W[1][1]<<endl;
+        files[2]<<i<<" "<<W[2][2]<<endl;
+        files[3]<<i<<" "<<V<<endl;
+    }
+    return 0;
+}*/
 
 int main(int argc, char **argv) {
     int my_rank;
@@ -52,21 +81,6 @@ int main(int argc, char **argv) {
         {
             rub[i]= (float) val[i].GetDouble();
         }
-//        std::ofstream file;
-//        file.open("output.txt");
-//        file << "CONSTANTS" << std::endl;
-//        file << fmt::format("count (particle count) = {0}", count) << std::endl;
-//        file << fmt::format("kB (Boltzmann constant) = {0}", kB) << std::endl;
-//        file << fmt::format("K (thermal conductivity) = {0}", K) << std::endl;
-//        file << fmt::format("n (shear viscocity) = {0}", n) << std::endl;
-//        file << fmt::format("z (bulk viscocity) = {0}", z) << std::endl;
-//        file << fmt::format("N (molecules per particle) = {0}", N) << std::endl;
-//        file << fmt::format("M (total fluid mass) = {0}", M) << std::endl;
-//        file << fmt::format("m (single particle mass) = {0}", M/count) << std::endl;
-//        file << fmt::format("h (radius) = {0}", h) << std::endl;
-//        file << fmt::format("ldf = ({0}, {1}, {2})", ldf[0], ldf[1], ldf[2]) << std::endl;
-//        file << fmt::format("rub = ({0}, {1}, {2})", rub[0], rub[1], rub[2]) << std::endl;
-
         Controller controller(count, kB, K, n, z, N, M, h, T0, totalTime, timeStep, ldf, rub, numprocs-1);
         if(!controller.initialize())
         {
@@ -75,7 +89,6 @@ int main(int argc, char **argv) {
             return 0;
         }
         controller.run();
-
     }
     else
     {
@@ -85,21 +98,20 @@ int main(int argc, char **argv) {
         int length;
         MPI_Get_count(&status, MPI_INT, &length);
         data.reserve(length);
-        //std::cout<<my_rank<<" "<<length<<" "<<MPI_Wtime() - start<<std::endl;
-
-
-        glm::vec3 lbf(data[0], data[1], data[2]);
-        glm::vec3 rub(data[3], data[4], data[5]);
-        float h = data[6];
-        float totalTime = data[7];
-        float timeStep = data[8];
-        CellGroup mainGroup(data[13], data[9], data[10], data[11], h, lbf, rub);
-        int iter = 12;
+        
+        float m(data[0]), M(data[1]), N(data[2]), kB(data[3]), K(data[4]), n(data[5]), z(data[6]); 
+        glm::vec3 lbf(data[7], data[8], data[9]);
+        glm::vec3 rub(data[10], data[11], data[12]);
+        float h = data[13];
+        float totalTime = data[14];
+        float timeStep = data[15];
+        CellGroup mainGroup(data[20], data[16], data[17], data[18], h, lbf, rub);
+        int iter = 19;
         const auto temp_iter = iter;
         iter++;
         //std::cout<<mainGroup<<std::endl;
         for(int group=0; group<data[temp_iter]; group++) {
-            CellGroup cellGroup(data[iter], data[9], data[10], data[11], h, lbf, rub);
+            CellGroup cellGroup(data[iter], data[16], data[17], data[18], h, lbf, rub);
             iter++;
             const auto temp_iter = iter;
             iter++;
@@ -134,10 +146,12 @@ int main(int argc, char **argv) {
             mainGroup.initializeCellNeighbors(c.second);
         }
         mainGroup.sortCellsByDistanceToNeighbor();
-        Client client(mainGroup, lbf, rub);
+        SDPDCalculations calculations(lbf, rub, N, n, m, z, K, kB, h, totalTime, timeStep);
+        Client client(mainGroup, lbf, rub, move(calculations));
         client.run(totalTime, timeStep);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize ();
     return 0;
 }
+

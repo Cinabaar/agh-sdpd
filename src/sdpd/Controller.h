@@ -43,5 +43,5 @@ public:
     void waitForData(vector<MPI_Request>& requests, vector<MPI_Status>& status);
     void run();
 
-    void sendTick(int tick);
+    void sendTick(int tick, int seed);
 };

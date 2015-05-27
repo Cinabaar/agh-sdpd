@@ -5,7 +5,8 @@ include_directories(${CMAKE_SOURCE_DIR}/3rdparty/glm)
 
 
 add_executable(main main.cpp Controller.cpp Controller.h CellGroup.cpp CellGroup.h Particle.cpp Particle.h
-Cell.cpp Cell.h Client.cpp Client.h OutputDataPrinter.cpp OutputDataPrinter.h BasicCalculations.cpp BasicCalculations.h)
+  Cell.cpp Cell.h Client.cpp Client.h OutputDataPrinter.cpp OutputDataPrinter.h BasicCalculations.cpp BasicCalculations.h SDPDCalculations.h SDPDCalculations.cpp
+  ParticleWienerRng.hpp ParticleWienerRng.cpp)
 target_link_libraries(main ${MPI_LIBRARIES} cppformat)
 
 

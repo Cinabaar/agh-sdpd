@@ -27,7 +27,7 @@ void Client::sendDataToController(bool firstTime) {
 
 
 void Client::run(float totalTime, float timeStep) {
-    int tickNumber = 0;
+    int tickNumber = 0, seed = 0;
     sendDataToController(true);
     size_t neighbor_count = cellGroup.neighbors_to_share_with.size();
     vector<vector<float>> buffers(neighbor_count);
@@ -38,63 +38,47 @@ void Client::run(float totalTime, float timeStep) {
     for(auto& buffer : buffers) {
         buffer.resize(1000000);
     }
-    tickNumber = waitForTick();
+    waitForTick(tickNumber, seed);
+    calculations.setDataForRng(seed, tickNumber);
     double time = MPI_Wtime();
     while(tickNumber!=(int)(totalTime/timeStep)) {
         if(neighbor_count > 0)
         {
             auto dataToSend = createDataVectors();
-            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Gathering data to share: ", MPI_Wtime() - time)<<endl;
-            time = MPI_Wtime();
             sendDataToNeighbors(dataToSend, requests);
             cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Sending data to neighbors: ", MPI_Wtime() - time)<<endl;
             time = MPI_Wtime();
         }
         auto edgeCellsStartAt = calculateInnerCells();
-        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Calculating inner cells: ", MPI_Wtime() - time)<<endl;
-        time = MPI_Wtime();
         if(neighbor_count>0)
         {
             receiveDataFromNeighbors(buffers, counts, requests, status);
-            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Receiving data from neighbors: ", MPI_Wtime() - time)<<endl;
-            time = MPI_Wtime();
             for(int i=0;i<buffers.size();i++)
             {
                 parseData(buffers[i], counts[i]);
             }
-            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Parsing data from neighbors: ", MPI_Wtime() - time)<<endl;
-            time = MPI_Wtime();
         }
         calculateEdgeCells(edgeCellsStartAt);
-        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Calculating edge cells: ", MPI_Wtime() - time)<<endl;
-        time = MPI_Wtime();
         clearOuterCells();
-        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Clearing outer cells: ", MPI_Wtime() - time)<<endl;
-        time = MPI_Wtime();
+        calculateIncrements(timeStep);
         auto particlesOoB = integrate(timeStep);
-        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Integrating: ", MPI_Wtime() - time)<<endl;
+        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Calculations: ", MPI_Wtime() - time)<<endl;
         time = MPI_Wtime();
         if(neighbor_count > 0)
         {
             sendDataToNeighbors(particlesOoB, requests);
-            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Sending data to neighbors2: ", MPI_Wtime() - time)<<endl;
-            time = MPI_Wtime();
             receiveDataFromNeighbors(buffers, counts, requests, status);
-            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Receiving data from neighbors2: ", MPI_Wtime() - time)<<endl;
-            time = MPI_Wtime();
             for(int i=0;i<buffers.size();i++)
             {
                 parseData(buffers[i], counts[i]);
             }
-            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Parsing data from neighbors2: ", MPI_Wtime() - time)<<endl;
+            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Exchanging particles: ", MPI_Wtime() - time)<<endl;
             time = MPI_Wtime();
         }
         sendDataToController(false);
-        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Sending data to controller: ", MPI_Wtime() - time)<<endl;
-        time = MPI_Wtime();
-        tickNumber = waitForTick();
-        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Waiting for tick: ", MPI_Wtime() - time)<<endl;
-        time = MPI_Wtime();
+        //cout<<cellGroup.id<<" has "<<cellGroup.totalParticles()<<" particles"<<std::endl;
+        waitForTick(tickNumber, seed);
+        calculations.setDataForRng(seed, tickNumber);
     }
 }
 
@@ -128,6 +112,7 @@ void Client::parseData(vector<float>& buffer, int length) {
     int it = 0;
     if(length <= 0)
         return;
+    //cout<<cellGroup.id<<" received "<<length/8<<endl;
     while(it < length)
     {
         Particle p(buffer[it], glm::vec3(buffer[it+1], buffer[it+2], buffer[it+3]), glm::vec3(buffer[it+4], buffer[it+5], buffer[it+6]), buffer[it+7]);
@@ -144,14 +129,13 @@ void Client::clearOuterCells() {
 }
 
 
-int Client::waitForTick()
+void Client::waitForTick(int& tickNumber, int& seed)
 {
-    int tick;
     MPI_Status status;
-    int rank;
-    MPI_Comm_rank (MPI_COMM_WORLD, &rank);
-    MPI_Recv(&tick, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
-    return tick;
+    array<int, 2> data;
+    MPI_Recv(&data[0], 2, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
+    tickNumber = data[0];
+    seed = data[1];
 }
 
 int Client::calculateInnerCells() {
@@ -159,14 +143,21 @@ int Client::calculateInnerCells() {
     for(i=0; i < cellGroup.innerCells.size(); i++){
         if(cellGroup.innerCells[i].second.size() > 0 && cellGroup.innerCells[i].second[0].second == 1)
             break;
-        calculations.calculate(cellGroup.innerCells[i].first, cellGroup);
+        calculations.calculateDensities(cellGroup.cells[cellGroup.innerCells[i].first]);
     }
     return i;
 }
 
 void Client::calculateEdgeCells(int edgeCellsStartAt) {
     for(int i=edgeCellsStartAt; i < cellGroup.innerCells.size(); i++){
-        calculations.calculate(cellGroup.innerCells[i].first, cellGroup);
+        calculations.calculateDensities(cellGroup.cells[cellGroup.innerCells[i].first]);
+    }
+}
+
+void Client::calculateIncrements( float timeStep ) {
+    for(auto& cell : cellGroup.cells)
+    {
+        calculations.calculateIncrements(cell.second, timeStep);
     }
 }
 
@@ -206,6 +197,7 @@ DataToSend Client::integrate(float deltaTime) {
                             d.second.push_back(particle.v.y);
                             d.second.push_back(particle.v.z);
                             d.second.push_back(particle.S);
+                            break;
                         }
                     }
                 }
@@ -224,6 +216,7 @@ void Client::sendDataToNeighbors(DataToSend& dataToSend, vector<MPI_Request>& re
     for(int i=0;i<dataToSend.size();i++)
     {
         auto& data = dataToSend[i];
+        //cout<<cellGroup.id<<" sending "<<data.second.size()/8<<" to "<<data.first<<endl;
         MPI_Isend(&data.second[0], data.second.size(), MPI_FLOAT, data.first, 0, MPI_COMM_WORLD, &requests[i]);
     }
 }

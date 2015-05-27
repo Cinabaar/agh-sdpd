@@ -13,7 +13,8 @@ class Particle {
 public:
     int id;
     vec3 r, v, dv;
-    float S, dS;
+    float S, dS, d, T, P;
+    
 
 public:
     Particle(int id, vec3 r, vec3 v, float S);

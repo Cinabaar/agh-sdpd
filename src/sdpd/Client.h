@@ -6,7 +6,7 @@
 
 #include <mpi.h>
 #include "CellGroup.h"
-#include "BasicCalculations.h"
+#include "SDPDCalculations.h"
 
 using DataToSend = vector<pair<int, vector<float>>>;
 using vecvecfloat = vector<vector<float>>;
@@ -14,21 +14,21 @@ class Client {
 
     vector<std::array<float, 5>> outputData;
     CellGroup cellGroup;
-    BasicCalculations calculations;
+    SDPDCalculations calculations;
 public:
-Client(CellGroup& group, vec3 lbf, vec3 rub) : cellGroup(std::move(group)), calculations(lbf, rub) {}
+    Client(CellGroup& group, vec3 lbf, vec3 rub, SDPDCalculations&& calculations) : cellGroup(std::move(group)), calculations(calculations) {}
     void run(float totalTime, float timeStep);
     void generateOutputData();
     void sendDataToController(bool firstTime);
 
-    int waitForTick();
+    void waitForTick(int& tickNumber, int& seed);
 
     DataToSend createDataVectors();
 
     int calculateInnerCells();
 
     void calculateEdgeCells(int edgeCellsStartAt);
-
+    void calculateIncrements(float timeStep);
     void parseData(vector<float> &vector, int length);
 
     DataToSend integrate(float deltaTime);
