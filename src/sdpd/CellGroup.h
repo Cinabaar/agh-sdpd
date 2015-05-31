@@ -39,12 +39,12 @@ CellGroup(int id, int h_x, int h_y, int h_z, float h, vec3 lbf, vec3 rub) : id(i
     CellGroup& operator=(CellGroup&&) = default;
 
     void initializeCellNeighbors(Cell &c);
-    const int totalParticles() const
+    int totalParticles()
     {
         int sum=0;
-        for(auto& c : cells)
+        for(auto& c : innerCells)
         {
-            sum+=c.second.particles.size();
+            sum+=cells.at(c.first).particles.size();
         }
         return sum;
     }
@@ -71,6 +71,5 @@ CellGroup(int id, int h_x, int h_y, int h_z, float h, vec3 lbf, vec3 rub) : id(i
 
     void initializeNeighborGroup(CellGroup &neighbor_cell_group);
     void sortCellsByDistanceToNeighbor();
-    int getParticleCount();
     int xyzToCellId(float x, float y, float z);
 };

@@ -17,12 +17,13 @@ public:
     
 
 public:
-    Particle(int id, vec3 r, vec3 v, float S);
     Particle& operator=(Particle const&) = delete;
     Particle& operator=(Particle&&) = default;
     Particle(const Particle&) = delete;
     Particle(Particle &&) = default;
 
+
+Particle(int id, vec3 r, vec3 v, float S) : id(id), r(r), v(v), S(S), dv(vec3(0,0,0)), dS(0), d(0), T(0), P(0) {}
     friend std::ostream& operator<< (std::ostream& stream, const Particle& particle) {
 
         stream<<fmt::format("Particle: {0} ({1}, {2}, {3}) {4}", particle.id, particle.r.x, particle.r.y, particle.r.z, particle.S);

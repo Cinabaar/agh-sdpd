@@ -25,9 +25,9 @@ public:
 
     DataToSend createDataVectors();
 
-    int calculateInnerCells();
-
-    void calculateEdgeCells(int edgeCellsStartAt);
+    int calculateInnerCellDensities();
+    void getOuterCellDensities();
+    void calculateEdgeCellDensities(int edgeCellsStartAt);
     void calculateIncrements(float timeStep);
     void parseData(vector<float> &vector, int length);
 

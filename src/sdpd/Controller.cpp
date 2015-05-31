@@ -73,21 +73,78 @@ bool Controller::initialize() {
         }
         cellGroups.push_back(std::move(cellGroup));
     }
+
     std::mt19937 gen;
-    std::uniform_real_distribution<double> r(0.0f, 1.0f);
+    std::uniform_real_distribution<double> rd(0.0f, 1.0f);
+    
+    float x = _rub.x - _ldf.x;
+    float y = _rub.y - _ldf.y;
+    float z = _rub.z - _ldf.z;
+    
+    int p_x = pow(_count * x * x / (y * z), 1.0/3);
+    int p_y = pow(_count * y * y / (x * z), 1.0/3);
+    int p_z = pow(_count * z * z / (x * y), 1.0/3);
+
+    std::cout<<"Particle dimensions: "<<p_x<<" "<<p_y<<" "<<p_z<<std::endl;
+    std::cout<<"Box dimensions: "<<h_x<<" "<<h_y<<" "<<h_z<<std::endl;
+    std::cout<<"Cell width: "<<_h<<std::endl;
+    _count = p_x*p_y*p_z;
+    
+    float itx=x/p_x/2.0;
+    float ity=y/p_y/2.0;
+    float itz=z/p_z/2.0;
+    int it=0;
+    for(int i=0;i<p_z;i++)
+    {
+        for(int j=0;j<p_y;j++)
+        {
+            for(int k=0;k<p_x;k++)
+            {
+                glm::vec3 r(itx, ity, itz);
+                //std::cout<<r.x<<" "<<r.y<<" "<<r.z<<std::endl;
+                itx+=x/p_x;
+                glm::vec3 v(rd(gen), rd(gen), rd(gen));
+                v = v / glm::length(v);
+                //v = (3.0f * _kB * T0 * _N * _count / _M) * v;
+                Particle p(it++, r, glm::vec3(0), 2);
+                int c_x, c_y, c_z;
+                c_x = (int) (r.x / _h);
+                c_y = (int) (r.y / _h);
+                c_z = (int) (r.z / _h);
+                int cid = (c_x + c_y * h_x + c_z * h_x * h_y);
+
+                for(CellGroup& group : cellGroups) {
+                    if(group.cells.find(cid) != group.cells.end()) {
+                        group.cells[cid].particles.push_back(std::move(p));
+                    }
+                }
+    
+            }
+            itx = x/p_x/2.0;
+            ity+=y/p_y;
+        }
+        itx = x/p_x/2.0;
+        ity = y/p_y/2.0;
+        itz+=z/p_z;
+    }
+        
+    /*
+
+
     for (int i = 0; i < _count; i++)
     {
-        float r_x = (_rub - _ldf).x * r(gen) + _ldf.x;
-        float r_y = (_rub - _ldf).y * r(gen) + _ldf.y; 
-        float r_z = (_rub - _ldf).z * r(gen) + _ldf.z;
-        glm::vec3 v(r(gen), r(gen), r(gen));
+        float r_x = (_rub - _ldf).x * rd(gen) + _ldf.x;
+        float r_y = (_rub - _ldf).y * rd(gen) + _ldf.y; 
+        float r_z = (_rub - _ldf).z * rd(gen) + _ldf.z;
+        glm::vec3 r(r_x, r_y, r_z);
+        glm::vec3 v(rd(gen), rd(gen), rd(gen));
         v = v / glm::length(v);
         v = (3.0f * _kB * T0 * _N * _count / _M) * v;
-        Particle p(i, glm::vec3(r_x, r_y, r_z), v, 2);
+        Particle p(i, glm::vec3(r.x, r.y, r.z), v, 2);
         int c_x, c_y, c_z;
-        c_x = (int) (r_x / _h);
-        c_y = (int) (r_y / _h);
-        c_z = (int) (r_z / _h);
+        c_x = (int) (r.x / _h);
+        c_y = (int) (r.y / _h);
+        c_z = (int) (r.z / _h);
         int cid = (c_x + c_y * h_x + c_z * h_x * h_y);
 
         for(CellGroup& group : cellGroups) {
@@ -95,7 +152,7 @@ bool Controller::initialize() {
                 group.cells[cid].particles.push_back(std::move(p));
             }
         }
-    }
+    }*/
     std::vector<std::vector<float>> init_messages(_slaves);
 
     for(int i=0;i<_slaves;i++)
@@ -171,7 +228,7 @@ bool Controller::initialize() {
     return true;
 }
 
-    int tick = 0;
+int tick = 0;
 void Controller::waitForData(vector<MPI_Request>& requests, vector<MPI_Status>& status) {
 
     outputData = vector<glm::vec4>(_count);
@@ -187,7 +244,7 @@ void Controller::waitForData(vector<MPI_Request>& requests, vector<MPI_Status>& 
 }
 
 void Controller::run() {
- vector<MPI_Request> requests(_slaves);
+    vector<MPI_Request> requests(_slaves);
     vector<MPI_Status> status(_slaves);
     double time = MPI_Wtime();
     std::mt19937 rng;
@@ -212,8 +269,8 @@ void Controller::run() {
         printer.addData(outputData, fmt::format("output{0}.data", tick-1));
         std::cout<<fmt::format("{0}. {1} {2}", "Controller", "Printing data: ", MPI_Wtime() - time)<<std::endl;
         time = MPI_Wtime();
+        printer.printData(tick-1); 
         tick++;
-        printer.printData();
     }
     std::cout<<"Printing data"<<std::endl;
     printer.printData();

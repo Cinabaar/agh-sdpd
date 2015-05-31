@@ -17,13 +17,14 @@ void Client::sendDataToController(bool firstTime) {
     }
     outputData.clear();
     for(auto& c : cellGroup.innerCells) {
-        for(Particle& p : cellGroup.cells[c.first].particles)
+        for(Particle& p : cellGroup.cells.at(c.first).particles)
         {
-            outputData.push_back(std::array<float, 5> {{(float)p.id, p.r.x, p.r.y, p.r.z, p.S}});
+            outputData.push_back(std::array<float, 5> {{(float)p.id, p.r.x, p.r.y, p.r.z, p.d}});
         }
     }
     MPI_Isend(&outputData[0], outputData.size()*5, MPI_FLOAT, 0, 2, MPI_COMM_WORLD, &request);
 }
+
 
 
 void Client::run(float totalTime, float timeStep) {
@@ -44,12 +45,10 @@ void Client::run(float totalTime, float timeStep) {
     while(tickNumber!=(int)(totalTime/timeStep)) {
         if(neighbor_count > 0)
         {
-            auto dataToSend = createDataVectors();
+            auto dataToSend = createDataVectors(); 
             sendDataToNeighbors(dataToSend, requests);
-            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Sending data to neighbors: ", MPI_Wtime() - time)<<endl;
-            time = MPI_Wtime();
         }
-        auto edgeCellsStartAt = calculateInnerCells();
+        auto edgeCellsStartAt = calculateInnerCellDensities();
         if(neighbor_count>0)
         {
             receiveDataFromNeighbors(buffers, counts, requests, status);
@@ -58,25 +57,38 @@ void Client::run(float totalTime, float timeStep) {
                 parseData(buffers[i], counts[i]);
             }
         }
-        calculateEdgeCells(edgeCellsStartAt);
+        calculateEdgeCellDensities(edgeCellsStartAt);
         clearOuterCells();
-        calculateIncrements(timeStep);
-        auto particlesOoB = integrate(timeStep);
-        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Calculations: ", MPI_Wtime() - time)<<endl;
-        time = MPI_Wtime();
         if(neighbor_count > 0)
         {
-            sendDataToNeighbors(particlesOoB, requests);
+            auto dataToSend = createDataVectors();
+            sendDataToNeighbors(dataToSend, requests);
             receiveDataFromNeighbors(buffers, counts, requests, status);
             for(int i=0;i<buffers.size();i++)
             {
                 parseData(buffers[i], counts[i]);
             }
-            cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Exchanging particles: ", MPI_Wtime() - time)<<endl;
-            time = MPI_Wtime();
         }
+
+        calculateIncrements(timeStep);
+        auto particlesOoB = integrate(timeStep);
+        clearOuterCells();
+//        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Calculations: ", MPI_Wtime() - time)<<endl;
+        time = MPI_Wtime();
+
+        if(neighbor_count > 0)
+        {
+            cout<<cellGroup.id<<" "<<particlesOoB[0].second.size()/9<<" Oob"<<endl;
+            sendDataToNeighbors(particlesOoB, requests);
+            receiveDataFromNeighbors(buffers, counts, requests, status);
+            for(int i=0;i<buffers.size();i++)
+            {
+                cout<<cellGroup.id<<" received "<<counts[i]/9<<" particles"<<endl;
+                parseData(buffers[i], counts[i]);
+            }
+        }
+        cout<<cellGroup.id<<" has "<<cellGroup.totalParticles()<<" particles"<<std::endl;
         sendDataToController(false);
-        //cout<<cellGroup.id<<" has "<<cellGroup.totalParticles()<<" particles"<<std::endl;
         waitForTick(tickNumber, seed);
         calculations.setDataForRng(seed, tickNumber);
     }
@@ -101,6 +113,7 @@ vector<pair<int, vector<float>>> Client::createDataVectors()
                 dataToSend[it].second.push_back(p.v.y);
                 dataToSend[it].second.push_back(p.v.z);
                 dataToSend[it].second.push_back(p.S);
+                dataToSend[it].second.push_back(p.d);
             }
         }
         it++;
@@ -116,9 +129,11 @@ void Client::parseData(vector<float>& buffer, int length) {
     while(it < length)
     {
         Particle p(buffer[it], glm::vec3(buffer[it+1], buffer[it+2], buffer[it+3]), glm::vec3(buffer[it+4], buffer[it+5], buffer[it+6]), buffer[it+7]);
-        it+=8;
+        p.d = buffer[it+8];
+        it+=9;
         int cid = cellGroup.xyzToCellId(p.r.x, p.r.y, p.r.z);
-        cellGroup.cells[cid].particles.push_back(std::move(p));
+        if(cellGroup.cells.find(cid) != cellGroup.cells.end())
+            cellGroup.cells.at(cid).particles.push_back(std::move(p));
     }
 }
 
@@ -138,26 +153,26 @@ void Client::waitForTick(int& tickNumber, int& seed)
     seed = data[1];
 }
 
-int Client::calculateInnerCells() {
+int Client::calculateInnerCellDensities() {
     int i;
     for(i=0; i < cellGroup.innerCells.size(); i++){
         if(cellGroup.innerCells[i].second.size() > 0 && cellGroup.innerCells[i].second[0].second == 1)
             break;
-        calculations.calculateDensities(cellGroup.cells[cellGroup.innerCells[i].first]);
+        calculations.calculateDensities(cellGroup.cells.at(cellGroup.innerCells[i].first));
     }
     return i;
 }
 
-void Client::calculateEdgeCells(int edgeCellsStartAt) {
+void Client::calculateEdgeCellDensities(int edgeCellsStartAt) {
     for(int i=edgeCellsStartAt; i < cellGroup.innerCells.size(); i++){
-        calculations.calculateDensities(cellGroup.cells[cellGroup.innerCells[i].first]);
+        calculations.calculateDensities(cellGroup.cells.at(cellGroup.innerCells[i].first));
     }
 }
 
 void Client::calculateIncrements( float timeStep ) {
-    for(auto& cell : cellGroup.cells)
+    for(auto& cell : cellGroup.innerCells)
     {
-        calculations.calculateIncrements(cell.second, timeStep);
+        calculations.calculateIncrements(cellGroup.cells[cell.first], timeStep);
     }
 }
 
@@ -170,38 +185,45 @@ DataToSend Client::integrate(float deltaTime) {
         it++;
     }
     int i=0;
-    for(auto& cell : cellGroup.cells)
-    {   i++;
-        for(auto particleIt = cell.second.particles.begin(); particleIt != cell.second.particles.end();)
+    for(auto& c : cellGroup.innerCells)
+    {
+        i++;
+        auto& cell = cellGroup.cells.at(c.first);
+        for(auto particleIt = cell.particles.begin(); particleIt != cell.particles.end();)
         {
             auto& particle = *particleIt;
             calculations.integrate(particle, deltaTime);
             int cid = cellGroup.xyzToCellId(particle.r.x, particle.r.y, particle.r.z);
-            if(cid != cell.first) {
-                auto& newCell = cellGroup.cells[cid];
-                if(newCell.cellGroupId == cellGroup.id)
+            if(cid != cell.id)
+            {
+                if(cellGroup.cells.find(cid) != cellGroup.cells.end())
                 {
-                    newCell.particles.push_back(std::move(particle));
-                }
-                else
-                {
-                    for(auto& d : dataToSend)
+                    auto& newCell = cellGroup.cells.at(cid);
+                    if(newCell.cellGroupId == cellGroup.id)
                     {
-                        if(d.first == newCell.cellGroupId)
+                        newCell.particles.push_back(std::move(particle));
+                    }
+                    else
+                    {
+                        for(auto& d : dataToSend)
                         {
-                            d.second.push_back(particle.id);
-                            d.second.push_back(particle.r.x);
-                            d.second.push_back(particle.r.y);
-                            d.second.push_back(particle.r.z);
-                            d.second.push_back(particle.v.x);
-                            d.second.push_back(particle.v.y);
-                            d.second.push_back(particle.v.z);
-                            d.second.push_back(particle.S);
-                            break;
+                            if(d.first == newCell.cellGroupId)
+                            {
+                                d.second.push_back(particle.id);
+                                d.second.push_back(particle.r.x);
+                                d.second.push_back(particle.r.y);
+                                d.second.push_back(particle.r.z);
+                                d.second.push_back(particle.v.x);
+                                d.second.push_back(particle.v.y);
+                                d.second.push_back(particle.v.z);
+                                d.second.push_back(particle.S);
+                                d.second.push_back(particle.d);
+                                break;
+                            }
                         }
                     }
                 }
-                particleIt = cell.second.particles.erase(particleIt);
+                particleIt = cell.particles.erase(particleIt);
             }
             else{
                 particleIt++;

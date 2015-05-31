@@ -1,5 +1,8 @@
 #include "SDPDCalculations.h"
 using glm::distance;
+using std::cout;
+using std::endl;
+
 void SDPDCalculations::integrate( Particle &particle, float deltaTime )
 {
     particle.S += particle.dS;
@@ -7,27 +10,37 @@ void SDPDCalculations::integrate( Particle &particle, float deltaTime )
     vec3 oldPos = particle.r;
     particle.r += particle.v * deltaTime;
     edgeCondition(oldPos, particle.r, particle.v);
+    particle.dv = vec3(0);
+    particle.dS = 0;
+    //cout<<particle.v.x<<" "<<particle.v.y<<" "<<particle.v.z<<endl;
 }
 
 void SDPDCalculations::calculateDensities(Cell& cell)
 {
+    double avg = 0.0;
     for(auto& pi : cell.particles)
     {
+        pi.d = 0;
         for(auto& c : cell.neighbors)
         {
             if(c == nullptr) continue;
             for(auto& pj : c->particles)
             {
-                pi.d += W(pi, pj); 
+                if(distance(pi.r, pj.r) >= h) continue;
+                //cout<<pj.r.x<<" "<<pj.r.y<<" "<<pj.r.z<<endl;
+                pi.d += W(pi, pj);
             }
         }
-        pi.T = N / (2*PI) * pi.d * exp(pi.S - 2); //34
-        pi.P = pi.d * pi.T; //34
-    } 
+        //pi.T = N / (2*PI) * pi.d * exp(pi.S - 2); //34
+        //pi.P = pi.d * pi.T; //34
+        pi.P = pi.d - 224.698;
+        avg += pi.d;
+    }
+    //cout<<"Particles: " << cell.particles.size()<<". "<<"Average for cell "<<cell.id<<" is "<<avg<<endl;
 }
-
 void SDPDCalculations::calculateIncrements( Cell& cell, float dt)
 {
+
     //for(auto& pi : cell.particles)
     //    std::cout<<pi.id<<" "<<pi.d<<" "<<pi.S<<" "<<m*pi.d<<" "<<pi.T<<"  "<<pi.P<<std::endl;
     vec3 mdvi(0,0,0);
@@ -40,42 +53,41 @@ void SDPDCalculations::calculateIncrements( Cell& cell, float dt)
             for(auto& pj : c->particles)
             {
                 if(distance(pi.r, pj.r) >= h) continue;
-                auto increments = wienerRng.getWienerIncrements(seed, tick, pi.id, pj.id, dt);
-                mat3& dW = increments.first;
-                mat3 _tr = tr(dW) * mat3(1);
-                float& dV = increments.second;
-                if(pi.id > pj.id)
-                    dV = -dV;
-                mat3 _dWW = dWW(dW, _tr);
-
-                vec3 mdvi1, mdvi2, mdvi3, mdvi4;
-                float tdsi1, tdsi2, tdsi3, tdsi4, tdsi5;
+                //auto increments = wienerRng.getWienerIncrements(seed, tick, pi.id, pj.id, dt);
+                //mat3& dW = increments.first;
+                //mat3 _tr = tr(dW) * mat3(1);
+                //float& dV = increments.second;
+                //if(pi.id > pj.id)
+                //    dV = -dV;
+                //mat3 _dWW = dWW(dW, _tr);
+                //vec3 mdvi1, mdvi2, mdvi3, mdvi4;
+                //float tdsi1, tdsi2, tdsi3, tdsi4, tdsi5;
                 //std::cout<<dW[0][0]<<" "<<dW[0][1]<<" "<<dW[0][2]<<" "<<dW[1][0]<<" "<<dW[1][1]<<" "<<dW[1][2]<<" "<<dW[2][0]<<" "<<dW[2][1]<<" "<<dW[2][2]<<std::endl;
                 //std::cout<<_dWW[0][0]<<" "<<_dWW[0][1]<<" "<<_dWW[0][2]<<" "<<_dWW[1][0]<<" "<<_dWW[1][1]<<" "<<_dWW[1][2]<<" "<<_dWW[2][0]<<" "<<_dWW[2][1]<<" "<<_dWW[2][2]<<std::endl;
                 //std::cout<<_tr[0][0]<<" "<<_tr[0][1]<<" "<<_tr[0][2]<<" "<<_tr[1][0]<<" "<<_tr[1][1]<<" "<<_tr[1][2]<<" "<<_tr[2][0]<<" "<<_tr[2][1]<<" "<<_tr[2][2]<<std::endl;
                 //std::cout<<dV<<std::endl;
                 //std::cout<<a(pi, pj)<<" "<<b(pi, pj)<<" "<<d(pi, pj)<<" "<<A(pi, pj)<<" "<<B(pi, pj)<<" "<<C(pj, pj)<<" "<<W(pi, pj)<<" "<<F(pi, pj)<<" "<<distance(pi.r, pj.r)<<std::endl;
-                mdvi1 = ((pi.P / (pi.d*pi.d)) + (pj.P / (pj.d * pj.d)))*F(pi, pj)*(pi.r-pj.r)*dt;
-                mdvi2 = (1-d(pi,pj))*a(pi, pj)*(pi.v - pj.v)*dt;
-                mdvi3 = (1-d(pi,pj))*(a(pi, pj)/3.0f + b(pi,pj))*eedotv(pi, pj)*dt;
-                mdvi4 = matDotVec(A(pi, pj)*_dWW + B(pi, pj)*(1/3.0f)*_tr, e(pi, pj));
+                mdvi += ((pi.P / (pi.d*pi.d)) + (pj.P / (pj.d * pj.d)))*F(pi, pj)*(pi.r-pj.r)*dt;
+                //mdvi2 = (1-d(pi,pj))*a(pi, pj)*(pi.v - pj.v)*dt;
+                //mdvi3 = (1-d(pi,pj))*(a(pi, pj)/3.0f + b(pi,pj))*eedotv(pi, pj)*dt;
+                //mdvi4 = matDotVec(A(pi, pj)*_dWW + B(pi, pj)*(1/3.0f)*_tr, e(pi, pj));
 
-                tdsi1 = 0.5f*(1-d(pi, pj) - (pj.T/ (pi.T + pj.T))*(kB/Ci))*(a(pi,pj)*vdotv(pi, pj)+(a(pi, pj)/3.0f+b(pi,pj))*edotvsq(pi, pj))*dt;
-                tdsi2 = 2.0f*kB/m*(pi.T*pj.T/(pi.T+pj.T))*(10.0/3*a(pi, pj) + b(pi, pj))*dt;
-                tdsi3 = 2*K*F(pi, pj)/(pi.d*pj.d)*(pi.T-pj.T)*dt;
-                tdsi4 = 2*K*kB/Ci*F(pi, pj)/(pi.d*pj.d)*pj.T*dt;
-                tdsi5 = -0.5 * matDotDotMat((A(pi,pj)*_dWW + B(pi,pj)*(1.0f/3)*_tr), vecVec(e(pi, pj), pi.v - pj.v)) + C(pi, pj)*dV;
-                mdvi = mdvi1 + mdvi2 + mdvi3 + mdvi4;
-                TdSi = tdsi1 + tdsi2 + tdsi3 + tdsi4 + tdsi5;
+                //tdsi1 = 0.5f*(1-d(pi, pj) - (pj.T/ (pi.T + pj.T))*(kB/Ci))*(a(pi,pj)*vdotv(pi, pj)+(a(pi, pj)/3.0f+b(pi,pj))*edotvsq(pi, pj))*dt;
+                //tdsi2 = 2.0f*kB/m*(pi.T*pj.T/(pi.T+pj.T))*(10.0/3*a(pi, pj) + b(pi, pj))*dt;
+                //tdsi3 = 2*K*F(pi, pj)/(pi.d*pj.d)*(pi.T-pj.T)*dt;
+                //tdsi4 = 2*K*kB/Ci*F(pi, pj)/(pi.d*pj.d)*pj.T*dt;
+                //tdsi5 = -0.5 * matDotDotMat((A(pi,pj)*_dWW + B(pi,pj)*(1.0f/3)*_tr), vecVec(e(pi, pj), pi.v - pj.v)) + C(pi, pj)*dV;
+                //mdvi = mdvi1 + mdvi2 + mdvi3 + mdvi4;
+                //TdSi = tdsi1 + tdsi2 + tdsi3 + tdsi4 + tdsi5;
                 //std::cout<<fmt::format("({0}, {1}, {2}) = ({3}, {4}, {5}) + ({6}, {7}, {8}) + ({9}, {10}, {11}) + ({12}, {13}, {14})",
                 //                       mdvi[0], mdvi[1], mdvi[2], mdvi1[0], mdvi1[1], mdvi1[2], mdvi2[0], mdvi2[1],
                 //                       mdvi2[2], mdvi3[0], mdvi3[1], mdvi3[2], mdvi4[0], mdvi4[1], mdvi4[2])<<std::endl;
                 //std::cout<<fmt::format("{0} = {1} + {2} + {3} + {4} + {5}", TdSi, tdsi1, tdsi2, tdsi3, tdsi4, tdsi5)<<std::endl;
             }
-
         }
         pi.dv = mdvi / m;
-        pi.dS = TdSi / pi.T;
+        //cout<<pi.dv.x<<" "<<pi.dv.y<<" "<<pi.dv.z<<endl;
+        //pi.dS = TdSi / pi.T;
         mdvi = vec3(0);
         TdSi = 0;
     }
@@ -302,7 +314,7 @@ void SDPDCalculations::edgeCondition(vec3& oldPosition, vec3& newPosition, vec3&
         vect = newVect;
         oldPosition = inters;
     }
-    if(didBump == true)
+    /*if(didBump == true)
     {
         newPosition.x = newPosition.x > rub.x ? rub.x : newPosition.x; 
         newPosition.x = newPosition.x < lbf.x ? lbf.x : newPosition.x;
@@ -311,5 +323,5 @@ void SDPDCalculations::edgeCondition(vec3& oldPosition, vec3& newPosition, vec3&
         newPosition.z = newPosition.x > rub.z ? rub.z : newPosition.z;
         newPosition.z = newPosition.x > lbf.z ? lbf.z : newPosition.z;
         newVelocity = vec3(0);
-    }
+        }*/
 }

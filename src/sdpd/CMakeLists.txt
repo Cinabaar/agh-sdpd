@@ -1,7 +1,7 @@
 include_directories(${MPI_INCLUDE_PATH})
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/cppformat)
-include_directories(${CMAKE_SOURCE_DIR}/3rdparty/rapidjson/include)
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/glm)
+include_directories(${CMAKE_SOURCE_DIR}/3rdparty/rapidjson/include)
 
 
 add_executable(main main.cpp Controller.cpp Controller.h CellGroup.cpp CellGroup.h Particle.cpp Particle.h

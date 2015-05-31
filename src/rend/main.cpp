@@ -1,4 +1,3 @@
-
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -12,11 +11,15 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
 #define GLM_FORCE_RADIANS
 
+using namespace rapidjson;
 using std::vector;
 using std::string;
 using std::ifstream;
+using glm::vec3;
 
 int currentFile = 0;
 
@@ -25,6 +28,7 @@ vector<float> colors;
 vector<float> radius;
 
 int i=0;
+string fileFolder = ".";
 string filePrefix = "output";
 string fileSuffix = ".data";
 
@@ -35,17 +39,19 @@ GLuint position_vbo;
 GLuint radius_vbo;
 GLuint color_vbo;
 GLuint shader_program;
+GLuint line_shader_program;
 GLuint camera_ubo;
 
 glm::vec3 cameraPosition;
 glm::quat cameraRotation;
 
 bool initialized;
+bool draw_lines;
 
+bool camera_move_right {false};
+bool camera_move_left {false};
 bool camera_move_forward {false};
 bool camera_move_back {false};
-bool camera_move_left {false};
-bool camera_move_right {false};
 bool camera_locked {true};
 
 void parseLine(const std::string &s);
@@ -56,17 +62,57 @@ static void OnKey(GLFWwindow *window, int key, int scancode, int action, int mod
 static void OnCursorPositionChanged(GLFWwindow *glfwWindow, double xPos, double yPos);
 static void OnMouseButton(GLFWwindow *glfwWindow, int button, int action, int mods);
 
+void createLineShaderProgram();
 void createParticleShaderProgram();
 void updatePerspective(float ratio);
 void updateView();
 
 void moveCamera(float deltaTime);
 
-glm::mat4 getCameraTransform()
-;
+glm::mat4 getCameraTransform();
 
-int main()
+using std::cout;
+using std::endl;
+
+int main(int argc, char** argv)
 {
+    if(argc > 1)
+    {
+        fileFolder = std::string(argv[1]);
+        cout<<fileFolder<<endl;
+    }
+    Document config;
+    std::ifstream in("config.json");
+    std::string contents((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+    const char* conf = contents.c_str();
+    config.Parse(conf);
+    Value val;
+    int count = config["count"].GetInt();
+    std::string dist = config["distribution"].GetString();
+    float M = config["M"].GetDouble();
+    float N = config["N"].GetDouble();
+    float kB = config["kB"].GetDouble();
+    float K = config["K"].GetDouble();
+    float n = config["n"].GetDouble();
+    float z = config["z"].GetDouble();
+    float h = config["h"].GetDouble();
+    float T0 = config["T0"].GetDouble();
+    float totalTime = config["totalTime"].GetDouble();
+    float timeStep = config["timeStep"].GetDouble();
+    glm::vec3 ldf;
+    glm::vec3 rub;
+    val = config["ldf"];
+    for(int i=0; i<val.Size(); i++)
+    {
+        ldf[i]= (float) val[i].GetDouble();
+    }
+    val = config["rub"];
+    for(int i=0; i<val.Size(); i++)
+    {
+        rub[i]= (float) val[i].GetDouble();
+    }
+        
     initialized = false;
     cameraRotation = glm::normalize(cameraRotation);
     glfwInit();
@@ -89,7 +135,8 @@ int main()
     glfwSetCursorPosCallback(window, OnCursorPositionChanged);
 
     createParticleShaderProgram();
-
+    createLineShaderProgram();
+    
     updateView();
     updatePerspective((float)width / height);
 
@@ -102,7 +149,60 @@ int main()
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     glBindBufferRange(GL_UNIFORM_BUFFER, 0, camera_ubo, 0, sizeof(glm::mat4) * 2);
     auto uniformBlockIndex = glGetUniformBlockIndex(shader_program, "Camera");
+    auto lineUniformBlockIndex = glGetUniformBlockIndex(line_shader_program, "Camera");
     glUniformBlockBinding(shader_program, uniformBlockIndex, 0);
+    glUniformBlockBinding(line_shader_program, lineUniformBlockIndex, 0);
+
+    
+    
+    vector<glm::vec3> line_points;
+    for(float i=ldf.x; i<= rub.x; i=std::min(i+h, rub.x))
+    {
+        for(float j=ldf.y; j<= rub.y; j=std::min(j+h, rub.y))
+        {
+            line_points.push_back(vec3(i, j, ldf.z));
+            line_points.push_back(vec3(i, j, rub.z));
+            if(j==rub.y) break;
+        }
+        if(i==rub.x) break;
+    }
+    for(float i=ldf.y; i<=rub.y; i=std::min(i+h, rub.y))
+    {
+        for(float j=ldf.z;j<=rub.z; j=std::min(j+h, rub.z))
+        {
+            line_points.push_back(vec3(ldf.x, i, j));
+            line_points.push_back(vec3(rub.x, i, j));
+            if(j==rub.z) break;
+        }
+        if(i==rub.y) break;
+    }
+    for(float i=ldf.x; i<=rub.x; i=std::min(i+h, rub.x))
+    {
+        for(float j=ldf.z;j<=rub.z; j=std::min(j+h, rub.z))
+        {
+            line_points.push_back(vec3(i, ldf.y, j));
+            line_points.push_back(vec3(i, rub.y, j));
+            if(j==rub.z) break;
+        }
+        if(i==rub.x) break;
+    }
+
+    GLuint vaolines, vbolines;
+    glGenVertexArrays(1, &vaolines);
+    glBindVertexArray (vaolines);
+    glGenBuffers (1, &vbolines);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbolines);
+    glBufferData (
+        GL_ARRAY_BUFFER,
+        line_points.size() * 3 * sizeof (GLfloat),
+        &line_points[0],
+        GL_STATIC_DRAW
+        );
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+   
 
     double previousTime = glfwGetTime();
     double currentTime;
@@ -117,16 +217,24 @@ int main()
             glfwGetFramebufferSize(window, &width, &height);
             glViewport(0, 0, width, height);
 
-            glUseProgram(shader_program);
             moveCamera(deltaTime);
             updateView();
             updatePerspective((float) width / height);
 
             if (initialized) {
+                glUseProgram(shader_program);
                 glBindVertexArray(vao);
                 glDrawArrays(GL_POINTS, 0, positions.size() / 3);
+
             }
 
+            if(draw_lines)
+            {
+                
+                glUseProgram(line_shader_program);
+                glBindVertexArray(vaolines);
+                glDrawArrays(GL_LINES, 0, line_points.size());
+            }
             glfwSwapBuffers(window);
         }
         glfwPollEvents();
@@ -233,6 +341,32 @@ void GetProgramLinkLog(GLuint program)
         std::cout<<&infoLog[0];
     }
 }
+
+void createLineShaderProgram()
+{
+    auto vert = getFileContents("shaders/lineshader_vert.glsl");
+    auto frag= getFileContents("shaders/lineshader_frag.glsl");
+    const char* lineVertexShader = vert.c_str();
+    const char* lineFragmentShader = frag.c_str();
+
+    GLuint wvs = glCreateShader (GL_VERTEX_SHADER);
+    glShaderSource (wvs, 1, &lineVertexShader, NULL);
+    glCompileShader (wvs);
+    GetShaderCompileLog(wvs);
+
+    GLuint wfs = glCreateShader (GL_FRAGMENT_SHADER);
+    glShaderSource (wfs, 1, &lineFragmentShader, NULL);
+    glCompileShader (wfs);
+    GetShaderCompileLog(wfs);
+
+    line_shader_program = glCreateProgram ();
+    glAttachShader (line_shader_program, wfs);
+    glAttachShader (line_shader_program, wvs);
+    glLinkProgram (line_shader_program);
+    GetProgramLinkLog(line_shader_program);
+
+}
+
 void createParticleShaderProgram()
 {
     auto vert = getFileContents("shaders/particleshader_vert.glsl");
@@ -275,32 +409,32 @@ void rebindBuffers()
 
     glBindBuffer(GL_ARRAY_BUFFER, position_vbo);
     glBufferData (
-            GL_ARRAY_BUFFER,
-            positions.size() * sizeof (GLfloat),
-            &positions[0],
-            GL_DYNAMIC_DRAW
-    );
+        GL_ARRAY_BUFFER,
+        positions.size() * sizeof (GLfloat),
+        &positions[0],
+        GL_DYNAMIC_DRAW
+        );
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
 
     glBindBuffer(GL_ARRAY_BUFFER, color_vbo);
     glBufferData (
-            GL_ARRAY_BUFFER,
-            colors.size() * sizeof (GLfloat),
-            &colors[0],
-            GL_DYNAMIC_DRAW
-    );
+        GL_ARRAY_BUFFER,
+        colors.size() * sizeof (GLfloat),
+        &colors[0],
+        GL_DYNAMIC_DRAW
+        );
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
     glBindBuffer(GL_ARRAY_BUFFER, radius_vbo);
     glBufferData (
-            GL_ARRAY_BUFFER,
-            radius.size() * sizeof (GLfloat),
-            &radius[0],
-            GL_DYNAMIC_DRAW
-    );
+        GL_ARRAY_BUFFER,
+        radius.size() * sizeof (GLfloat),
+        &radius[0],
+        GL_DYNAMIC_DRAW
+        );
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 0, NULL);
 }
@@ -358,13 +492,13 @@ static void OnKey(GLFWwindow *window, int key, int scancode, int action, int mod
     }
     else if(key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
-        if(tryParseFile(fmt::format("{0}{1}{2}", filePrefix, currentFile, fileSuffix)))
+        if(tryParseFile(fmt::format("{0}/{1}{2}{3}",fileFolder, filePrefix, currentFile, fileSuffix)))
         {
             /*positions = {-1.0f, -1.0f, 0.0f,
-                         1.0f, -1.0f, 0.0f,
-                         0.0f,  1.0f, 0.0f,};
-            colors = {255, 255, 255};
-            radius = {0.0f, 0.0f, 0.0f};*/
+              1.0f, -1.0f, 0.0f,
+              0.0f,  1.0f, 0.0f,};
+              colors = {255, 255, 255};
+              radius = {0.0f, 0.0f, 0.0f};*/
             rebindBuffers();
 
             initialized = true;
@@ -373,7 +507,7 @@ static void OnKey(GLFWwindow *window, int key, int scancode, int action, int mod
     }
     else if(key==GLFW_KEY_LEFT && (action == GLFW_PRESS || action == GLFW_REPEAT))
     {
-        if(tryParseFile(fmt::format("{0}{1}{2}", filePrefix, currentFile-1, fileSuffix)))
+        if(tryParseFile(fmt::format("{0}/{1}{2}{3}", fileFolder, filePrefix, currentFile-1, fileSuffix)))
         {
             currentFile--;
             rebindBuffers();
@@ -382,7 +516,7 @@ static void OnKey(GLFWwindow *window, int key, int scancode, int action, int mod
     }
     else if(key == GLFW_KEY_RIGHT && (action == GLFW_PRESS || action == GLFW_REPEAT))
     {
-        if(tryParseFile(fmt::format("{0}{1}{2}", filePrefix, currentFile+1, fileSuffix)))
+        if(tryParseFile(fmt::format("{0}/{1}{2}{3}", fileFolder, filePrefix, currentFile+1, fileSuffix)))
         {
             currentFile++;
             rebindBuffers();
@@ -432,6 +566,11 @@ static void OnKey(GLFWwindow *window, int key, int scancode, int action, int mod
         {
             camera_move_right = false;
         }
+    }
+    else if(key == GLFW_KEY_L)
+    {
+        if(action == GLFW_PRESS)
+            draw_lines = !draw_lines;
     }
 }
 

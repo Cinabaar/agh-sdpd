@@ -32,7 +32,7 @@ void CellGroup::initializeCellNeighbors(Cell &c)
     }
     for(int i=0;i<27;i++)
     {
-        if(neighbors[i] < 0 || neighbors[i] >= h_x*h_y*h_z || neighbors[i]==c.id) {
+        if(neighbors[i] < 0 || neighbors[i] >= h_x*h_y*h_z)  {
             neighbors[i] = -1;
             continue;
         }
@@ -49,16 +49,13 @@ void CellGroup::initializeCellNeighbors(Cell &c)
     }
     for(int i=0;i<27;i++)
     {
-        if(neighbors[i] == -1)
+        if(neighbors[i] == -1) {
             c.neighbors[i] = nullptr;
-        else
-            c.neighbors[i] = &cells[neighbors[i]];
+        }
+        else {
+            c.neighbors[i] = &(cells.at(neighbors[i]));
+        }
     }
-    if(std::find_if(innerCells.begin(), innerCells.end(), [&](const pair<CellId, vector<pair<CellGroupId, Distance >>> el) {return el.first == c.id;}) == innerCells.end())
-    {
-        innerCells.push_back(std::make_pair(c.id, vector<pair<CellGroupId, Distance>>()));
-    }
-    
 }
 
 void CellGroup::initializeNeighborGroup(CellGroup &neighbor_cell_group) {
@@ -89,7 +86,6 @@ void CellGroup::initializeNeighborGroup(CellGroup &neighbor_cell_group) {
             neighbors_to_share_with[neighbor_cell_group.id].push_back(c.first);
         }
     }
-
     for(auto& innerCell : innerCells) {
         if(innerCell.second.size()>1) {
             if(innerCell.second[0].second > innerCell.second[1].second)
@@ -136,21 +132,16 @@ void CellGroup::sortCellsByDistanceToNeighbor() {
               [&](const pair<CellId, vector<pair<CellGroupId, Distance >>>& l, const pair<CellId, vector<pair<CellGroupId, Distance >>>& r)
               {
                   if(l.second.size() > 0 && r.second.size() > 0)
-                  return l.second[0].second > r.second[0].second;
+                      return l.second[0].second > r.second[0].second;
+                  return l.first > r.first;
               });
 
     std::sort(outerCells.begin(), outerCells.end(),
               [&](const pair<CellId, vector<pair<CellGroupId, Distance >>>& l, const pair<CellId, vector<pair<CellGroupId, Distance >>>& r)
               {
                   if(l.second.size() > 0 && r.second.size() > 0)
-                  return l.second[0].second > r.second[0].second;
+                      return l.second[0].second > r.second[0].second;
+                  return l.first > r.first;
               });
 
-}
-
-int CellGroup::getParticleCount() {
-    int particles = 0;
-    for(auto& i : innerCells) {
-        particles += cells[i.first].particles.size();
-    }
 }

@@ -142,10 +142,20 @@ int main(int argc, char **argv) {
                 mainGroup.initializeNeighborGroup(cellGroup);
             }
         }
-        for(auto& c : mainGroup.cells) {
-            mainGroup.initializeCellNeighbors(c.second);
+        if(numprocs < 3) {
+            for(auto& c : mainGroup.cells) {
+                mainGroup.innerCells.push_back(std::make_pair(c.first, vector<pair<CellGroupId, Distance>>())); 
+            }
+        }
+        for(auto& c : mainGroup.innerCells) {
+            mainGroup.initializeCellNeighbors(mainGroup.cells[c.first]);
         }
         mainGroup.sortCellsByDistanceToNeighbor();
+        std::cout<<mainGroup.id<<" "<<mainGroup.innerCells.size()<<" "<<mainGroup.outerCells.size()<<" "<<mainGroup.cells.size()<<endl;
+        //for(auto& n : mainGroup.neighbors_to_share_with)
+        //{
+        //    std::cout<<mainGroup.id<<" "<<n.first<<" "<<n.second.size()<<std::endl;
+        //}
         SDPDCalculations calculations(lbf, rub, N, n, m, z, K, kB, h, totalTime, timeStep);
         Client client(mainGroup, lbf, rub, move(calculations));
         client.run(totalTime, timeStep);
