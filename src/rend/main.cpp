@@ -455,7 +455,7 @@ void parseLine(const std::string &s) {
             colors.push_back(r);
             colors.push_back(g);
             colors.push_back(b);
-            radius.push_back(0.01f);
+            radius.push_back(0.04f);
         }
     }
 }

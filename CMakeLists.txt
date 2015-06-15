@@ -12,8 +12,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/src/sdpd)
-add_subdirectory(${CMAKE_SOURCE_DIR}/src/rend)
-add_subdirectory(${CMAKE_SOURCE_DIR}/3rdparty/glew-cmake)
-
+#add_subdirectory(${CMAKE_SOURCE_DIR}/src/rend)
+#add_subdirectory(${CMAKE_SOURCE_DIR}/3rdparty/glew-cmake)
 
 add_library(cppformat STATIC ${CMAKE_SOURCE_DIR}/3rdparty/cppformat/format.cc)

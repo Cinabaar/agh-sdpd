@@ -3,6 +3,7 @@
 //
 #include <mpi.h>
 #include "Client.h"
+#include <fstream>
 
 using std::cout;
 using std::endl;
@@ -73,7 +74,7 @@ void Client::run(float totalTime, float timeStep) {
         calculateIncrements(timeStep);
         auto particlesOoB = integrate(timeStep);
         clearOuterCells();
-//        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Calculations: ", MPI_Wtime() - time)<<endl;
+        cout<<fmt::format("{0}. {1} {2}", cellGroup.id, "Calculations: ", MPI_Wtime() - time)<<endl;
         time = MPI_Wtime();
 
         if(neighbor_count > 0)
@@ -185,6 +186,7 @@ DataToSend Client::integrate(float deltaTime) {
         it++;
     }
     int i=0;
+    double energy=0;
     for(auto& c : cellGroup.innerCells)
     {
         i++;
@@ -193,6 +195,7 @@ DataToSend Client::integrate(float deltaTime) {
         {
             auto& particle = *particleIt;
             calculations.integrate(particle, deltaTime);
+            energy+=length(particle.v)*length(particle.v);
             int cid = cellGroup.xyzToCellId(particle.r.x, particle.r.y, particle.r.z);
             if(cid != cell.id)
             {
@@ -224,12 +227,17 @@ DataToSend Client::integrate(float deltaTime) {
                     }
                 }
                 particleIt = cell.particles.erase(particleIt);
+                continue;
             }
             else{
                 particleIt++;
+                continue;
             }
         }
     }
+    std::fstream file;
+    file.open("energy.data", std::fstream::out | std::fstream::app);
+    file<<energy<<endl;
     return dataToSend;
 }
 

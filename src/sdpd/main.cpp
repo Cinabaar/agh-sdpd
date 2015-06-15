@@ -15,31 +15,6 @@ using namespace rapidjson;
 using std::cout;
 using std::endl;
 
-/*int main()
-{
-    ParticleWienerRng rng;
-    std::mt19937 mt;
-    std::ofstream files[4];
-    files[0].open("wiener0.data");
-    files[1].open("wiener1.data");
-    files[2].open("wiener2.data");
-    files[3].open("wiener3.data");
-
-    glm::mat3 W(0);
-    float V = 0;
-    for(int i=0;i<300;i++)
-    {
-        auto inc = rng.getWienerIncrements(mt(), i, 0, 1, 0.033);
-        W+=inc.first;
-        V+=inc.second;
-        files[0]<<i<<" "<<W[0][0]<<endl;
-        files[1]<<i<<" "<<W[1][1]<<endl;
-        files[2]<<i<<" "<<W[2][2]<<endl;
-        files[3]<<i<<" "<<V<<endl;
-    }
-    return 0;
-}*/
-
 int main(int argc, char **argv) {
     int my_rank;
     int numprocs;

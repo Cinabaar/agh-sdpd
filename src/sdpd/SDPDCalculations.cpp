@@ -33,7 +33,7 @@ void SDPDCalculations::calculateDensities(Cell& cell)
         }
         //pi.T = N / (2*PI) * pi.d * exp(pi.S - 2); //34
         //pi.P = pi.d * pi.T; //34
-        pi.P = pi.d - 224.698;
+        pi.P = (pi.d - 224.698) / 2;
         avg += pi.d;
     }
     //cout<<"Particles: " << cell.particles.size()<<". "<<"Average for cell "<<cell.id<<" is "<<avg<<endl;

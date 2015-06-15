@@ -13,5 +13,5 @@
   "h": 0.33,
   "T0": 20.0,
   "totalTime": 5,
-  "timeStep": 0.003
+  "timeStep": 0.001
 }
